@@ -10,6 +10,8 @@ import pygame
 import time
 import os
 
+import _utils
+
 GRID_SIZE = 32
 
 # window size
@@ -42,47 +44,54 @@ red = pygame.Color(125, 10, 10)
 lightyellow = pygame.Color(250, 245, 200)
 
 SPRITE_PATH = ''
-def find_path(pathstr, startpath, FILENAME):
-    # Scans files from current working directory recursively until a file called 'FILENAME' is found. Otherwise NoneType is returned
-    with os.scandir(startpath) as it:
-        for entry in it:
-            if not entry.name.startswith('.') and not entry.is_file():
-                pathstr = os.path.join(pathstr, entry.name)
-                return find_path(pathstr, pathstr, FILENAME)
-            if entry.name == FILENAME:
-                pathstr = os.path.join(pathstr, entry.name)
-                return pathstr
-            else:
-                return None
-
-SPRITE_PATH = find_path(SPRITE_PATH, os.curdir, "agent.png")
-print(SPRITE_PATH)
+SPRITE_PATH = _utils.find_path(SPRITE_PATH, os.curdir, "agent.png")
 
 SPRITE = pygame.image.load(
         SPRITE_PATH)
 SPRITE = pygame.transform.scale(SPRITE, (WIDTH//GRID_SIZE, HEIGHT//GRID_SIZE))
 
+class Direction:
+    RIGHT = 0
+    UP = 1
+    LEFT = 2
+    DOWN = 3
+
 class Ant:
     def __init__(self, position=[0, 0]):
         self.position = position
-        self.dir = 0 # 0 = right, 1 = up, 2 = left, 3 = down
+        self.dir = Direction.RIGHT # 0 = right, 1 = up, 2 = left, 3 = down
+        self.smellsFood = False
+        self.wasFed = False
 
     def move(self):
-        if (self.dir == 0):
+        if (self.dir == Direction.RIGHT):
             self.position[0] += WIDTH // GRID_SIZE
-        elif (self.dir == 1):
+        elif (self.dir == Direction.UP):
             self.position[1] -= HEIGHT // GRID_SIZE
-        elif (self.dir == 2):
+        elif (self.dir == Direction.LEFT):
             self.position[0] -= WIDTH // GRID_SIZE
-        elif (self.dir == 3):
+        elif (self.dir == Direction.DOWN):
             self.position[1] += HEIGHT // GRID_SIZE
         else :
             raise ValueError
             print("Ant.dir is out of range!")
 
-    def draw(self):
+    def sniffAhead(self, trail):
+        # returns true if the ant is facing food
+        self.smellsFood = False
+        next_cell = self.position.copy()
+        if (self.dir == 0 or self.dir == 3):
+            next_cell[0 if self.dir == 0 else 1] += WIDTH // GRID_SIZE
+        elif (self.dir == 1 or self.dir == 2):
+            next_cell[0 if self.dir == 1 else 1] -= WIDTH // GRID_SIZE
+
+        for i in range(len(trail.pellets)):
+            if (trail.pellets[i-1].position == next_cell):
+                self.smellsFood = True
+
+    def draw(self, surface):
         agent = pygame.transform.rotate(SPRITE, self.dir * (360/4))
-        map_.surface.blit(agent, (self.position[0], self.position[1]) )
+        surface.blit(agent, (self.position[0], self.position[1]) )
 
 
 class Map:
@@ -91,10 +100,8 @@ class Map:
         self.height = height
         self.color = color
         self.toroidal = toroidal
-
-        self.surface = pygame.display.set_mode((self.width, self.height))
     
-    def handleEdges(self):
+    def guard(self, ant): # prevents ant from exiting
         if ant.position[0] >= self.width:
             ant.position[0] = 0 if self.toroidal else self.width - self.width/GRID_SIZE
 
@@ -107,22 +114,22 @@ class Map:
         if ant.position[1] < 0:
             ant.position[1] = self.height - self.height/GRID_SIZE if self.toroidal else 0
 
-    def draw(self):
-        self.surface.fill(self.color)
+    def draw(self, surface):
+        surface.fill(self.color)
         
         for x in range(0, self.width, self.width // GRID_SIZE):
             for y in range(0, self.height, self.height // GRID_SIZE):
-                pygame.draw.line(self.surface, gray, (x, 0), (x, self.height), 2)
-                pygame.draw.line(self.surface, gray, (0, y), (self.width, y), 2)
+                pygame.draw.line(surface, gray, (x, 0), (x, self.height), 2)
+                pygame.draw.line(surface, gray, (0, y), (self.width, y), 2)
 
 
 class Pellet:
-    def __init__(self, position=[WIDTH/GRID_SIZE * 10, HEIGHT/GRID_SIZE * 10]):
+    def __init__(self, position=[WIDTH/GRID_SIZE * 16, HEIGHT/GRID_SIZE * 16]):
         self.position = position
         self.wasEaten = False
 
-    def draw(self):
-        pygame.draw.rect(map_.surface, red, pygame.Rect(self.position[0], self.position[1], 
+    def draw(self, surface):
+        pygame.draw.rect(surface, red, pygame.Rect(self.position[0], self.position[1], 
                                                         WIDTH / GRID_SIZE, HEIGHT / GRID_SIZE))
 
 class Trail:
@@ -138,15 +145,17 @@ class Trail:
             for pos in SANTA_FE:
                 self.addPellet(pos)
 
-
     def update(self):
         for i in range(len(self.pellets)):
             if self.pellets[i-1].position == ant.position:
-               self.pellets.pop(i-1)
+                self.pellets.pop[i-1]
 
-    def draw(self):
+    def removePellet(self, pelletIndex):
+            self.pellets.pop(pelletIndex)
+
+    def draw(self, surface):
         for i in range(len(self.pellets)):
-            self.pellets[i].draw()
+            self.pellets[i].draw(surface)
 
 
 # Initialising pygame
@@ -156,32 +165,73 @@ pygame.init()
 fps = 120
 
 
-def rlm_controls(ant, key):
-    if (key == pygame.K_j):
-        ant.dir = (ant.dir + 1) % 4
-    elif (key == pygame.K_k):
-        ant.dir = (ant.dir - 1) % 4
-    elif (key == pygame.K_f):
-        ant.move()
-    return
 
-def pellet_on_click():
-    mousePosition = pygame.mouse.get_pos()
-    xPos = mousePosition[0] - mousePosition[0] % (WIDTH / GRID_SIZE);
-    yPos = mousePosition[1] - mousePosition[1] % (HEIGHT / GRID_SIZE);
-    trail.addPellet([xPos, yPos]);
+class Controller:
+    def rlm_controls(ant, key):
+        if (key == pygame.K_j):
+            ant.dir = (ant.dir + 1) % 4
+        elif (key == pygame.K_k):
+            ant.dir = (ant.dir - 1) % 4
+        elif (key == pygame.K_f):
+            ant.move()
+        return
 
+    def rlm_command(ant, command):
+        if (command == 'lt'):
+            ant.dir = (ant.dir + 1) % 4
+        elif (key == 'rt'):
+            ant.dir = (ant.dir - 1) % 4
+        elif (key == 'f'):
+            ant.move()
+        return
+
+    def pellet_on_click():
+        mousePosition = pygame.mouse.get_pos()
+        xPos = mousePosition[0] - mousePosition[0] % (WIDTH / GRID_SIZE);
+        yPos = mousePosition[1] - mousePosition[1] % (HEIGHT / GRID_SIZE);
+        trail.addPellet([xPos, yPos]);
+
+class Game:
+    def __init__(self):
+        self.food_eaten = 0
+        self.steps_taken = 0
+        self.score = 0
+
+    def play(self, ant, move, command=False):
+        if command:
+            Controller.rlm_command(ant, move)
+        else:
+            Controller.rlm_controls(ant, move)
+        self.steps_taken += 1
+
+    def update_state(self, screen, ant, map_, trail):
+        map_.guard(ant)
+        ant.sniffAhead(trail)
+        map_.draw(screen)
+        trail.draw(screen)
+        ant.draw(screen)
+
+    def update_score(self, ant, trail):
+        ant.wasFed = False
+        for idx in range(len(trail.pellets)):
+            if trail.pellets[idx-1].position == ant.position:
+                self.food_eaten += 1
+                trail.removePellet(idx-1)
+                ant.wasFed = True
+        self.score = self.food_eaten
 
 font = pygame.font.Font
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
 ant = Ant();
 map_ = Map();
 trail = Trail();
+game = Game();
 
 while True:
 
     for event in pygame.event.get():
         if event.type == pygame.KEYDOWN:
-            rlm_controls(ant, event.key)
+            game.play(ant, event.key)
 
             if event.key == pygame.K_s: # load santa fe trail
                 trail.load("santa fe")
@@ -192,19 +242,19 @@ while True:
 
 
         if event.type == pygame.MOUSEBUTTONDOWN:
-            pellet_on_click()
+            Controller.pellet_on_click()
 
         if event.type == pygame.QUIT:
             pygame.quit()
             quit()
-
     
-    map_.handleEdges()
-    map_.draw()
-    trail.draw()
-    ant.draw()
+        game.update_state(screen, ant, map_, trail)
+        game.update_score(ant, trail)
+        # map_.guard(ant)
+        # map_.draw(screen)
+        # trail.draw(screen)
+        # ant.draw(screen)
+        # trail.update()
 
     pygame.display.update()
-
-    trail.update()
 
