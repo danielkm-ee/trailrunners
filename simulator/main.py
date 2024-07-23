@@ -2,7 +2,9 @@
 # Author(s) : Daniel Monahan
 # contact(s) : danielkm@github.com
 #
-# 
+# This file demonstrates the runtime loop for each frame of the trailrunning game. This file is a playable version, using keys to control the character.
+# The runtime loop is the same if using an artificial agent, but use the command=True tag when calling 'play' as this will allow chars in {'r', 'l', 'f'}
+# to be sent as controls (commands) for the gameplay.
 
 import pygame
 import time
@@ -45,31 +47,31 @@ gray = pygame.Color(150, 150, 150)
 red = pygame.Color(125, 10, 10)
 lightyellow = pygame.Color(250, 245, 200)
 
+
 def main():
     # Initialising pygame
     pygame.init()
 
-    # FPS (frames per second) controller
-    fps = 120
-
-    font = pygame.font.Font
+    # constructing game elements
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
     ant = Ant();
     map_ = Map();
     trail = Trail();
     game = Game();
+    # font = pygame.font.Font
 
     while True:
 
         for event in pygame.event.get():
             if event.type == pygame.KEYDOWN:
-                game.play(ant, event.key)
+                game.play(ant, event.key, command=False)
 
                 if event.key == pygame.K_s: # load santa fe trail
-                    trail.load("santa fe")
+                    trail.load(SANTA_FE)
 
                 if event.key == pygame.K_q:
                     pygame.quit()
+                    game.print_stats(ant)
                     quit()
 
 
@@ -78,17 +80,22 @@ def main():
 
             if event.type == pygame.QUIT:
                 pygame.quit()
+                game.print_stats(ant)
                 quit()
-        
-            game.update_state(screen, ant, map_, trail)
-            game.update_score(ant, trail)
-            # map_.guard(ant)
-            # map_.draw(screen)
-            # trail.draw(screen)
-            # ant.draw(screen)
-            # trail.update()
+            
+        game.update_state(screen, ant, map_, trail)
+        game.update_score(ant, trail)
+
+        ## manual version of game.update()
+        # map_.patrol(ant)
+        # map_.draw(screen)
+        # trail.draw(screen)
+        # ant.draw(screen)
+        # trail.update()
 
         pygame.display.update()
+
+
 
 if __name__ == '__main__':
     main()

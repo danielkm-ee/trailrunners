@@ -9,9 +9,8 @@ import _utils
 SPRITE_PATH = ''
 SPRITE_PATH = _utils.find_path(SPRITE_PATH, os.curdir, "agent.png")
 
-SPRITE = pygame.image.load(
-        SPRITE_PATH)
-SPRITE = pygame.transform.scale(SPRITE, (20, 20))
+SPRITE = pygame.image.load(SPRITE_PATH)
+SPRITE = pygame.transform.scale(SPRITE, (20, 20)) # cell_size = 20
 
 class Direction:
     RIGHT = 0
@@ -40,17 +39,20 @@ class Ant:
             print("Ant.dir is out of range!")
 
     def sniffAhead(self, trail, cell_size=20):
-        # sets 'smellsFood' to true if the ant is facing food
+        # sets 'smellsFood' to true if the ant is facing food, and wasFed to True if ant has eaten
         self.smellsFood = False
-        next_cell = self.position.copy()
-        if (self.dir == 0 or self.dir == 3):
-            next_cell[0 if self.dir == 0 else 1] += cell_size
-        elif (self.dir == 1 or self.dir == 2):
-            next_cell[0 if self.dir == 1 else 1] -= cell_size
+        self.wasFed = False
+        next_cell = self.position.copy()                                    # from ant.position [x, y]
+        if (self.dir == Direction.RIGHT or self.dir == Direction.DOWN):
+            next_cell[0 if self.dir == Direction.RIGHT else 1] += cell_size # get cell to right if dir==right, otherwise get cell below (dir==down)
+        elif (self.dir == Direction.UP or self.dir == Direction.LEFT):
+            next_cell[0 if self.dir == Direction.UP else 1] -= cell_size    # get cell to left.... get cell above...
 
-        for i in range(len(trail.pellets)):
-            if (trail.pellets[i-1].position == next_cell):
+        for pellet in trail.pellets:
+            if (pellet.position == next_cell):
                 self.smellsFood = True
+            if (pellet.position == self.position):
+                self.wasFed = True
 
     def draw(self, surface):
         agent = pygame.transform.rotate(SPRITE, self.dir * (360/4))

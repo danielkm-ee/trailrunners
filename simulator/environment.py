@@ -11,7 +11,7 @@ class Map:
         self.foreground = foreground
         self.toroidal = toroidal
     
-    def guard(self, ant): # prevents ant from exiting
+    def patrol(self, ant): # prevents ant from exiting
         if ant.position[0] >= self.width:
             ant.position[0] = 0 if self.toroidal else self.width - self.width/self.grid_size
 
@@ -51,9 +51,8 @@ class Trail:
         pellet = Pellet(position=position)
         self.pellets.append(pellet)
 
-    def load(self, trailname):
-        if trailname == "santa fe":
-            for pos in SANTA_FE:
+    def load(self, positions):
+        for pos in positions:
                 self.addPellet(pos)
 
     def update(self):
