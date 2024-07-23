@@ -7,8 +7,8 @@
 import pygame
 from pygame.locals import *
 
-from ant import Ant
-from environment import Map, Trail
+from .ant import Ant
+from .environment import Map, Trail
 
 class Controller:
     # interprets commands and controls from the user/agent
@@ -69,11 +69,12 @@ class Game:
                 trail.removePellet(idx-1)
         self.score = self.food_eaten
 
-    def print_stats(self, ant):
+    def print_stats(self, ant, trail):
         print("PERFORMANCE STATISTICS")
         print(f"Score: {self.score}")
         print(f"Food Eaten: {self.food_eaten}")
         print(f"Steps Taken: {self.steps_taken}")
+        print(f"Total Food: {trail.total_pellets}")
         print(f"Ant was fed?: {ant.wasFed}")
         print(f"Ant smells food?: {ant.smellsFood}")
 
