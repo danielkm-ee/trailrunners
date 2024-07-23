@@ -10,11 +10,11 @@ import pygame
 import time
 import os
 
-from game import Game, Controller
-from environment import Map, Trail
-from ant import Ant
+from TrailGame.game import Game, Controller
+from TrailGame.environment import Map, Trail
+from TrailGame.ant import Ant
 
-import _utils
+import TrailGame._utils
 
 GRID_SIZE = 32
 
@@ -71,7 +71,7 @@ def main():
 
                 if event.key == pygame.K_q:
                     pygame.quit()
-                    game.print_stats(ant)
+                    game.print_stats(ant, trail)
                     quit()
 
 
@@ -80,7 +80,7 @@ def main():
 
             if event.type == pygame.QUIT:
                 pygame.quit()
-                game.print_stats(ant)
+                game.print_stats(ant, trail)
                 quit()
             
         game.update_state(screen, ant, map_, trail)
