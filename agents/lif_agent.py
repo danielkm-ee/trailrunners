@@ -9,14 +9,16 @@ import torch
 import torch.nn as nn
 import snntorch as snn
 
-class Net(nn.Module):
-    def __init__(self):
-        super().__init__(num_inputs=2, num_hidden=10, num_outputs=4, beta=0.5)
+class LIF_SpikeNet(nn.Module):
+    def __init__(self, num_inputs=2, num_hidden=10, num_outputs=4, beta=0.5, num_steps=100):
+        super().__init__()
 
         self.fc1 = nn.Linear(num_inputs, num_hidden)
         self.lif1 = snn.Leaky(beta=beta)
         self.fc2 = nn.Linear(num_hidden, num_outputs)
         self.lif2 = snn.Leaky(beta=beta, output=True)
+
+        self.num_steps = num_steps
 
     def forward(self, x):
 
@@ -29,7 +31,7 @@ class Net(nn.Module):
         mem2_rec = []
         spk2_rec = []
 
-        for step in range(num_steps):
+        for step in range(self.num_steps):
             syn1 = self.fc1(x[step])
             spk1, mem1 = self.lif1(syn1, mem1)
             syn2 = self.fc2(spk1)
