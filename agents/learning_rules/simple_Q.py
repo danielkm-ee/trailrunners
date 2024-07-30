@@ -1,6 +1,6 @@
 import numpy
 
-class Simple_Q:
+class simple_Q:
 
         # Simple_Q defines the value of a state
         # as the amount of food collected as a
