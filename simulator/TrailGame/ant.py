@@ -20,12 +20,14 @@ class Direction:
 
 class Ant:
     def __init__(self, position=[0, 0]):
+        self.start_position = position
         self.position = position
         self.dir = Direction.RIGHT # 0 = right, 1 = up, 2 = left, 3 = down
-        self.smellsFood = False
-        self.wasFed = False
+        self.sees_food_ahead = False
+        self.was_fed = False
 
     def move(self, cell_size=20):
+        # when called, the ant will move 1 cell in the direction it is facing
         if (self.dir == Direction.RIGHT):
             self.position[0] += cell_size
         elif (self.dir == Direction.UP):
@@ -38,10 +40,10 @@ class Ant:
             raise ValueError
             print("Ant.dir is out of range!")
 
-    def sniffAhead(self, trail, cell_size=20):
-        # sets 'smellsFood' to true if the ant is facing food, and wasFed to True if ant has eaten
-        self.smellsFood = False
-        self.wasFed = False
+    def checkCellAhead(self, trail, cell_size=20):
+        # sets 'seesFoodAhead' to true if the ant is facing food, and wasFed to True if ant has eaten
+        self.sees_food_ahead = False
+        self.was_fed = False
         next_cell = self.position.copy()                                    # from ant.position [x, y]
         if (self.dir == Direction.RIGHT or self.dir == Direction.DOWN):
             next_cell[0 if self.dir == Direction.RIGHT else 1] += cell_size # get cell to right if dir==right, otherwise get cell below (dir==down)
@@ -50,9 +52,9 @@ class Ant:
 
         for pellet in trail.pellets:
             if (pellet.position == next_cell):
-                self.smellsFood = True
+                self.sees_food_ahead = True
             if (pellet.position == self.position):
-                self.wasFed = True
+                self.was_fed = True
 
     def draw(self, surface):
         agent = pygame.transform.rotate(SPRITE, self.dir * (360/4))

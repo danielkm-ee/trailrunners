@@ -55,19 +55,27 @@ class Game:
             Controller.rlm_controls(ant, move)
         self.steps_taken += 1
 
-    def update_state(self, screen, ant, map_, trail):
-        map_.patrol(ant)
-        ant.sniffAhead(trail)
-        map_.draw(screen)
-        trail.draw(screen)
-        ant.draw(screen)
+    def update(self, ant, trail, map_):
+        map_.checkBoundaries(ant)
+        ant.checkCellAhead(trail)
 
-    def update_score(self, ant, trail):
+        # check if ant position matches a pellet position, update food eaten
         for idx in range(len(trail.pellets)):
             if trail.pellets[idx-1].position == ant.position:
                 self.food_eaten += 1
                 trail.removePellet(idx-1)
-        self.score = self.food_eaten
+
+    def reset(self, ant, trail, map_):
+        ant.position = ant.startPosition
+        self.food_eaten = 0
+        self.steps_taken = 0
+        self.score = 0
+        trail.total_pellets = 0
+
+    def draw_screen(self, screen, ant, trail, map_):
+        map_.draw(screen)
+        trail.draw(screen)
+        ant.draw(screen)
 
     def print_stats(self, ant, trail):
         print("PERFORMANCE STATISTICS")
@@ -75,6 +83,6 @@ class Game:
         print(f"Food Eaten: {self.food_eaten}")
         print(f"Steps Taken: {self.steps_taken}")
         print(f"Total Food: {trail.total_pellets}")
-        print(f"Ant was fed?: {ant.wasFed}")
-        print(f"Ant smells food?: {ant.smellsFood}")
+        print(f"Ant was fed?: {ant.was_fed}")
+        print(f"Ant smells food?: {ant.sees_food_ahead}")
 

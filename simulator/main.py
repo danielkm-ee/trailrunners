@@ -83,8 +83,8 @@ def main():
                 game.print_stats(ant, trail)
                 quit()
             
-        game.update_state(screen, ant, map_, trail)
-        game.update_score(ant, trail)
+        game.update(ant, trail, map_)
+        game.draw_screen(screen, ant, trail, map_)
 
         ## manual version of game.update()
         # map_.patrol(ant)

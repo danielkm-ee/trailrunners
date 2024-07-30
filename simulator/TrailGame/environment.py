@@ -11,7 +11,7 @@ class Map:
         self.foreground = foreground
         self.toroidal = toroidal
     
-    def patrol(self, ant): # prevents ant from exiting
+    def checkBoundaries(self, ant): # prevents ant from exiting
         if ant.position[0] >= self.width:
             ant.position[0] = 0 if self.toroidal else self.width - self.width/self.grid_size
 
@@ -36,7 +36,6 @@ class Map:
 class Pellet:
     def __init__(self, position=[20 * 16, 20 * 16], color=pygame.Color(125, 10, 10)):
         self.position = position
-        self.wasEaten = False
         self.color = color
 
     def draw(self, surface):
