@@ -7,7 +7,7 @@ import os
 from . import _utils
 
 SPRITE_PATH = ''
-SPRITE_PATH = _utils.find_path(SPRITE_PATH, os.curdir, "agent.png")
+SPRITE_PATH = "simulator/TrailGame/assets/agent.png"#_utils.find_path(SPRITE_PATH, os.curdir, "agent.png")
 
 SPRITE = pygame.image.load(SPRITE_PATH)
 SPRITE = pygame.transform.scale(SPRITE, (20, 20)) # cell_size = 20

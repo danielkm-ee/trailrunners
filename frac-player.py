@@ -11,7 +11,6 @@ import snntorch as snn
 
 from snntorch import spikegen
 from agents.frac_agent import FSNN
-from agents.learning_rules.simple_Q import simple_Q
 
 import numpy as np
 import time
@@ -90,7 +89,6 @@ dtype = torch.float
 # initialize the neural network
 net = FSNN(num_inputs, num_hidden, num_outputs, num_moves, num_steps, device).to(device)
 
-critic = simple_Q()
 
 def main():
 
@@ -162,7 +160,6 @@ def main():
         print(f"Average time between moves: {np.mean(np.array(movetime))}")
         print(f"Random moves made: {random_moves}. Chosen moves made: {chosen_moves}")
         game.reset(ant, map_, trail)
-        ant.reset()
         game.draw_screen(screen, ant, trail, map_)
         pygame.display.update()
 

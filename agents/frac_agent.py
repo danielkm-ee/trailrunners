@@ -2,8 +2,9 @@ import snntorch as snn
 
 import torch
 import torch.nn as nn
-import learning_rules.simple_Q # May need to fix
-import STDP
+import numpy as np
+from agents.learning_rules.STDP import Learner
+import math
 
 
 class FSNN(nn.Module):
@@ -16,24 +17,36 @@ class FSNN(nn.Module):
                 self.thinking_time = thinking_time
 
                 self.forward_hidden = nn.Linear(num_input, num_hidden)
-                self.hidden_layer = flif_neuron(num_hidden, device, tottime)
+                weight = self.forward_hidden.weight
+                self.forward_hidden.weight = nn.Parameter(weight.mul(10))
+
+
+                #self.recurrent_hidden = nn.Linear(num_hidden, num_hidden)
+                #weight = self.recurrent_hidden.weight
+                #self.forward_hidden.weight = nn.Parameter(torch.abs(weight.mul(5)))
+                
+                
+                self.hidden_layer = flif_neuron(num_hidden, device, self.tottime)
 
                 self.forward_output = nn.Linear(num_hidden, num_output)
-                self.output_layer = flif_neuron(num_output, device, tottime)
+                weight = self.forward_output.weight
+                self.forward_output.weight = nn.Parameter(weight.mul(10))
+                
+                self.output_layer = flif_neuron(num_output, device, self.tottime)
 
                 self.num_steps = num_steps
                 self.device = device
 
-                # NOTE: Play with ratio of thinking time vs learner window
-                self.learner = STDP.Learner(num_input, num_hidden, num_output, 50)
+                # NOTE: Play with ratio of thinking time vs learner window, also the w_inc and max parameters
+                self.learner = Learner(num_input, num_hidden, num_output, 50, 0.01, 0.01, 10, device)
                 
                 
                 
         # Computes an action
         def forward(self, data):
 
-                hidden_mem = self.forward_hidden.init_mem()
-                output_mem = self.forward_output.init_mem()
+                hidden_mem = self.hidden_layer.init_mem()
+                output_mem = self.output_layer.init_mem()
 
                 spike_trace = list()
                 
@@ -47,9 +60,14 @@ class FSNN(nn.Module):
                         input_spikes = data[ms, :]
                         
                         hidden_current = self.forward_hidden(input_spikes)
+
+                        #if ms > 0:
+
+                                #hidden_current.add_(self.recurrent_hidden(hidden_spikes))
+                        
                         hidden_spikes, hidden_mem = self.hidden_layer(hidden_current, hidden_mem)
                         
-                        output_current = self.forward_output(data[ms, :])
+                        output_current = self.forward_output(hidden_spikes)
                         output_spikes, output_mem = self.output_layer(output_current, output_mem)
 
                         spike_trace.append(output_spikes)
@@ -57,7 +75,7 @@ class FSNN(nn.Module):
                         self.learner.update(input_spikes, hidden_spikes, output_spikes)
 
 
-                return torch.stack(output_spikes, dim=0)
+                return torch.stack(spike_trace, dim=0)
 
         # Called after each action; 
         def weight_update(self, criticism):
@@ -67,10 +85,16 @@ class FSNN(nn.Module):
                 hidden_weights = self.forward_hidden.weight
                 output_weights = self.forward_output.weight
 
+                torch.set_grad_enabled(False)
+                
                 hidden_weights.mul_(weight_mod_hidden)
                 output_weights.mul_(weight_mod_output)
 
-                
+
+        def reset(self):
+
+                self.hidden_layer.reset_memory()
+                self.output_layer.reset_memory()
 
 
 
@@ -86,7 +110,6 @@ class flif_neuron(nn.Module):
                 self.device = device
                 self.num_steps = num_steps
                 self.delta_trace = torch.zeros(0)
-                self.spike_gradient = snn.surrogate.ATan
                 
                 # Fractional LIF equation parameters
                 self.alpha = 0.2
@@ -100,7 +123,7 @@ class flif_neuron(nn.Module):
                 self.N = 0
 
 
-                if len(FLIF.weight_vector) == 0:
+                if len(flif_neuron.weight_vector) == 0:
                         x = num_steps
                         
                         nv = np.arange(x-1)
@@ -134,7 +157,7 @@ class flif_neuron(nn.Module):
                         V_new = torch.sub(V_new, memory_V)
 
 
-                spike = self.spike_gradient((V_old - self.threshold))
+                spike = ((V_old - self.threshold) > 0).float()
                 reset = (spike * (V_new - self.V_reset)).detach()
 
                 V_new = torch.sub(V_new, reset)
@@ -152,7 +175,7 @@ class flif_neuron(nn.Module):
 
         def reset_memory(self):
 
-                self.delta_trace = torch.zeros(0)
+                self.delta_trace = torch.zeros(0).to(self.device)
 
         def update_delta(self, V_new, V_old):
 
@@ -160,7 +183,7 @@ class flif_neuron(nn.Module):
 
                 if self.N == 1:
                         # init delta_trace
-                        self.delta_trace = torch.zeros(self.layer_size, self.num_steps).to(device)
+                        self.delta_trace = torch.zeros(self.layer_size, self.num_steps).to(self.device)
 
 
                 self.delta_trace[:, self.N-1] = delta
