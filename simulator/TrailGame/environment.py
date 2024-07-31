@@ -39,8 +39,7 @@ class Pellet:
         self.color = color
 
     def draw(self, surface):
-        pygame.draw.rect(surface, self.color, pygame.Rect(self.position[0], self.position[1], 
-                                                        20, 20))
+        pygame.draw.rect(surface, self.color, pygame.Rect(self.position[0], self.position[1], 20, 20))
 
 class Trail:
     def __init__(self):

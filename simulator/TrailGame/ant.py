@@ -41,7 +41,7 @@ class Ant:
             print("Ant.dir is out of range!")
 
     def checkCellAhead(self, trail, cell_size=20):
-        # sets 'seesFoodAhead' to true if the ant is facing food, and wasFed to True if ant has eaten
+        # sets 'sees_food_ahead' to true if the ant is facing food, and wasFed to True if ant has eaten
         self.sees_food_ahead = False
         self.was_fed = False
         next_cell = self.position.copy()                                    # from ant.position [x, y]
