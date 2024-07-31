@@ -19,9 +19,9 @@ class Learner():
                 self.elig_output = torch.zeros((num_output, num_hidden)).to(device)
 
                 # eligibility timers
-                self.last_in = torch.zeros(num_input)
-                self.last_hid = torch.zeros(num_hidden)
-                self.last_out = torch.zeros(num_output)
+                self.last_in = torch.zeros(num_input).to(device)
+                self.last_hid = torch.zeros(num_hidden).to(device)
+                self.last_out = torch.zeros(num_output).to(device)
 
                 self.num_input = num_input
                 self.num_hidden = num_hidden
@@ -42,9 +42,9 @@ class Learner():
         def update(self, in_spk, hid_spk, out_spk):
 
                 
-                decay_in = (self.last_in > 0).float()
-                decay_hid = (self.last_hid > 0).float()
-                decay_out = (self.last_out > 0).float()
+                decay_in = (self.last_in > 0).float().to(self.device)
+                decay_hid = (self.last_hid > 0).float().to(self.device)
+                decay_out = (self.last_out > 0).float().to(self.device)
 
                 self.last_in.sub_(decay_in)
                 self.last_hid.sub_(decay_hid)
@@ -76,6 +76,7 @@ class Learner():
 
         
         def weight_change(self, criticism, rescale):
+
 
                 # rescaling
                 if rescale:
