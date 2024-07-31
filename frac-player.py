@@ -66,11 +66,11 @@ def get_command(spikes):
     if torch.rand(1) > 0.95: # random chance of moving
 
         rand_move = torch.randint(low=0, high=3, size=(1,1))
-        idx = rand_move.item()
-        random_moves += 1
+        #idx = rand_move.item()
+        #random_moves += 1
 
-        if _ > 0:
-            chosen_moves -= 1
+        #if _ > 0:
+        #    chosen_moves -= 1
         
     return command[idx]
 
@@ -101,7 +101,7 @@ def main():
     global chosen_moves
     global random_moves
     
-    for epoch in range(60):
+    for epoch in range(100):
 
         
         
@@ -109,6 +109,8 @@ def main():
         
         trail.load(SANTA_FE)
         game.update(ant, trail, map_)
+        game.draw_screen(screen, ant, trail, map_)
+        pygame.display.update()
 
         old_crit = 0
         
@@ -130,13 +132,13 @@ def main():
             game.play(ant, command, command=True)
 
             if ant.was_fed:
-                criticism = 1
+                criticism = 2
 
             elif ant.sees_food_ahead:
-                criticism = 0.01
+                criticism = 0.5
 
             else:
-                criticism = -0.05
+                criticism = -1
 
             #old_crit = critic.get_Q(game.food_eaten, num_moves)
                 
@@ -156,7 +158,8 @@ def main():
             pygame.display.update()
 
 
-        game.print_stats(ant, trail)
+        #print_stats(ant, trail)
+        print(f"No ops: {net.scale}")
         print(f"Average time between moves: {np.mean(np.array(movetime))}")
         print(f"Random moves made: {random_moves}. Chosen moves made: {chosen_moves}")
         game.reset(ant, map_, trail)

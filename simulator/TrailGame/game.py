@@ -7,7 +7,7 @@
 import pygame
 from pygame.locals import *
 
-from .ant import Ant
+from .ant import Ant, Direction
 from .environment import Map, Trail
 
 class Controller:
@@ -67,6 +67,7 @@ class Game:
 
     def reset(self, ant, trail, map_):
         ant.position = ant.start_position.copy()
+        ant.dir = Direction.RIGHT
         trail.__init__()
         self.food_eaten = 0
         self.steps_taken = 0

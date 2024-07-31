@@ -15,9 +15,10 @@ class Learner():
                 self.elig_hidden = torch.zeros((num_hidden, num_input)).to(device)
                 self.elig_output = torch.zeros((num_output, num_hidden)).to(device)
 
-                # eligibility timers for elig. trace values
-                self.eh_timer = torch.zeros_like(self.elig_hidden).to(device)
-                self.eo_timer = torch.zeros_like(self.elig_output).to(device)
+                # eligibility timers
+                self.last_in = torch.zeros(num_input)
+                self.last_hid = torch.zeros(num_hidden)
+                self.last_out = torch.zeros(num_output)
 
                 self.num_input = num_input
                 self.num_hidden = num_hidden
@@ -32,13 +33,11 @@ class Learner():
                 self.w_s_max = w_s_max
                 self.w_inc_hid = w_inc_hid
                 self.w_inc_out = w_inc_out
-
-                self.density_threshold = 0.1
                 
 
         # Calculates eligibility traces
         def update(self, in_spk, hid_spk, out_spk):
-
+                """
                 # for input-hidden trace, increase eligibility by
                 # [self.window] for indices [i,j] where
                 # in_spk[i] and hid_spk[j] are both 1
@@ -76,14 +75,41 @@ class Learner():
                 # eligible synapses are those with timers > 0
                 self.elig_hidden = (self.eh_timer > 0).float()
                 self.elig_output = (self.eo_timer > 0).float()
+                """
+                decay_in = (self.last_in > 0).float()
+                decay_hid = (self.last_hid > 0).float()
+                decay_out = (self.last_out > 0).float()
 
+                self.last_in.sub_(decay_in)
+                self.last_hid.sub_(decay_hid)
+                self.last_out.sub_(decay_out)
+                
+                self.last_in.add_(torch.mul(in_spk, self.window))
+                self.last_hid.add_(torch.mul(hid_spk, self.window))
+                self.last_out.add_(torch.mul(out_spk, self.window))
+
+
+                reg_in = torch.zeros(0).to(self.device)
+                reg_hid = torch.zeros(0).to(self.device)
+                reg_out = torch.zeros(0).to(self.device)
+
+
+                torch.remainder(self.last_in, self.window, out=reg_in)
+                torch.remainder(self.last_hid, self.window, out=reg_hid)
+                torch.remainder(self.last_out, self.window, out=reg_out)
+
+                self.last_in.sub_(reg_in)
+                self.last_hid.sub_(reg_hid)
+                self.last_out.sub_(reg_out)
+
+                self.elig_hidden = torch.mul(torch.reshape(self.last_in, (1, self.num_input)), torch.reshape(self.last_hid, (self.num_hidden, 1))) * self.window
+                self.elig_output = torch.mul(torch.reshape(self.last_hid, (1, self.num_hidden)), torch.reshape(self.last_out, (self.num_output, 1))) * self.window
+
+                self.elig_hidden = (self.elig_hidden > 0).float()
+                self.elig_output = (self.elig_output > 0).float()
 
         
         def weight_change(self, criticism):
-
-                sensitivity_hidden = self.elig_hidden.sum().item() / (self.num_hidden * self.num_input)
-                sensitivity_output = self.elig_output.sum().item() / (self.num_hidden * self.num_output)
-
 
 
                 # If the critic returns a negative, we've performed badly.
@@ -109,15 +135,6 @@ class Learner():
 
                 weight_hid = self.weight_mod_hidden
                 weight_out = self.weight_mod_output
-
-                
-                if sensitivity_hidden < self.density_threshold:
-
-                        weight_hid = 1.10
-
-                if sensitivity_output < self.density_threshold:
-
-                        weight_out = 1.10
                 
 
                 # synapses should be multiplied by these values
