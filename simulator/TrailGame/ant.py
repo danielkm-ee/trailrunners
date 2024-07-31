@@ -20,7 +20,7 @@ class Direction:
 
 class Ant:
     def __init__(self, position=[0, 0]):
-        self.start_position = position
+        self.start_position = position.copy()
         self.position = position
         self.dir = Direction.RIGHT # 0 = right, 1 = up, 2 = left, 3 = down
         self.sees_food_ahead = False

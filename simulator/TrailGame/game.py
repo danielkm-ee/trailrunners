@@ -66,7 +66,7 @@ class Game:
                 trail.removePellet(idx-1)
 
     def reset(self, ant, trail, map_):
-        ant.__init__(position=[0,0])
+        ant.position = ant.start_position.copy()
         trail.__init__()
         self.food_eaten = 0
         self.steps_taken = 0
