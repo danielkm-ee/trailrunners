@@ -77,10 +77,10 @@ def get_command(spikes):
 
 # sim params
 num_inputs = 2
-num_hidden = 20
+num_hidden = 50
 num_outputs = 3
 
-num_steps = 100
+num_steps = 200
 num_moves = 200
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -121,6 +121,7 @@ def main():
         movetime = []   # benchmarking runtime performance
         time.sleep(1)
         for move in range(num_moves):
+            pygame.event.pump()
             start = time.time()
 
             stimulus = get_stimulus(ant.sees_food_ahead)
@@ -132,10 +133,10 @@ def main():
             game.play(ant, command, command=True)
 
             if ant.was_fed:
-                criticism = 2
+                criticism = 1*game.food_eaten
 
             elif ant.sees_food_ahead:
-                criticism = 0.5
+                criticism = -0.01
 
             else:
                 criticism = -1
@@ -159,9 +160,9 @@ def main():
 
 
         #print_stats(ant, trail)
-        print(f"No ops: {net.scale}")
+        print(f"No ops: {net.scale}. Food collected: {game.food_eaten}")
         print(f"Average time between moves: {np.mean(np.array(movetime))}")
-        print(f"Random moves made: {random_moves}. Chosen moves made: {chosen_moves}")
+        print(f"Random moves made: {random_moves}. Chosen moves made: {chosen_moves}\n")
         game.reset(ant, map_, trail)
         game.draw_screen(screen, ant, trail, map_)
         pygame.display.update()

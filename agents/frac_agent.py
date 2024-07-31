@@ -17,7 +17,7 @@ class FSNN(nn.Module):
                 self.thinking_time = thinking_time
 
                 self.forward_hidden = nn.Linear(num_input, num_hidden)
-                weight = self.forward_hidden.weight
+                hidden_weights = self.forward_hidden.weight
                 #self.forward_hidden.weight = nn.Parameter(torch.abs(weight.mul(5)))
 
 
@@ -29,7 +29,7 @@ class FSNN(nn.Module):
                 self.hidden_layer = flif_neuron(num_hidden, device, self.tottime)
 
                 self.forward_output = nn.Linear(num_hidden, num_output)
-                weight = self.forward_output.weight
+                output_weights = self.forward_output.weight
                 #self.forward_output.weight = nn.Parameter(torch.abs(weight.mul(5)))
                 
                 self.output_layer = flif_neuron(num_output, device, self.tottime)
@@ -37,11 +37,11 @@ class FSNN(nn.Module):
                 self.num_steps = num_steps
                 self.device = device
 
-                self.silent = False
-                self.scale = 0
+                self.rescale = False
+                self.rescale_count = 0
 
                 # NOTE: Play with ratio of thinking time vs learner window, also the w_inc and max parameters
-                self.learner = Learner(num_input, num_hidden, num_output, 50, 0.1, 0.1, 10, device)
+                self.learner = Learner(num_input, num_hidden, num_output, hidden_weights, output_weights 50, 0.1, 0.1, 10, device)
                 
                 
                 
@@ -82,41 +82,23 @@ class FSNN(nn.Module):
 
                 spike_count = spike_trace.sum().item()
 
-                self.silent = (spike_count == 0)
+                self.rescale = (spike_count == 0)
                 
                 return spike_trace
 
         # Called after each action; 
         def weight_update(self, criticism):
-                
-                
 
-                hidden_weights = self.forward_hidden.weight
-                output_weights = self.forward_output.weight
+                self.rescale_count += 1
+                hidden_weights, output_weights = self.learner.weight_change(criticism, self.rescale)
 
-                torch.set_grad_enabled(False)
-
-                if self.silent:
-
-                        self.scale += 1
-                        
-                        #hidden_weights.mul_(1.1)
-                        #output_weights.mul_(1.1)
-
-                        #print(hidden_weights[0,0])
-
-                else:
-
-                        weight_mod_hidden, weight_mod_output = self.learner.weight_change(criticism)
-                        hidden_weights.mul_(weight_mod_hidden)
-                        output_weights.mul_(weight_mod_output)
 
                 self.forward_hidden.weight = nn.Parameter(hidden_weights)
                 self.forward_output.weight = nn.Parameter(output_weights)
 
 
         def reset(self):
-                self.scale = 0
+                self.rescale_count = 0
                 self.hidden_layer.reset_memory()
                 self.output_layer.reset_memory()
 

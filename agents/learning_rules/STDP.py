@@ -6,10 +6,13 @@ import torch.nn as nn
 
 class Learner():
 
-        def __init__(self, num_input, num_hidden, num_output, window, w_inc_hid, w_inc_out, w_s_max, device):
+        def __init__(self, num_input, num_hidden, num_output, hidden_weights, output_weights, window, w_inc_hid, w_inc_out, w_s_max, device):
 
                 self.device = device
                 self.window = window
+
+                self.hidden_weights = hidden_weights
+                self.output_weights = output_weights
 
                 # Eligibility traces for synapses: 1 if eligible, 0 otherwise
                 self.elig_hidden = torch.zeros((num_hidden, num_input)).to(device)
@@ -37,45 +40,8 @@ class Learner():
 
         # Calculates eligibility traces
         def update(self, in_spk, hid_spk, out_spk):
-                """
-                # for input-hidden trace, increase eligibility by
-                # [self.window] for indices [i,j] where
-                # in_spk[i] and hid_spk[j] are both 1
-                new_elig_hidden = torch.mul(torch.reshape(in_spk, (1, self.num_input)), torch.reshape(hid_spk, (self.num_hidden, 1))) * self.window
 
-
-                # Do the same for hidden-output trace
-                new_elig_output = torch.mul(torch.reshape(hid_spk, (1, self.num_hidden)), torch.reshape(out_spk, (self.num_output, 1))) * self.window
-
-
-                # Then traces need to be decayed and regularized;
-                # Traces decay by 1 at each step (each call of update())
-                # Only decay positive-valued indices
-                decay_hidden = (self.eh_timer > 0).float()
-                decay_output = (self.eo_timer > 0).float()
-
-                self.eh_timer.sub_(decay_hidden)
-                self.eo_timer.sub_(decay_output)
-
-
-                self.eh_timer.add_(new_elig_hidden)
-                self.eo_timer.add_(new_elig_output)
-
-
-                # Trace values also need to stay between 0 and self.window
-                regularization_hidden = torch.zeros(0).to(self.device)
-                regularization_output = torch.zeros(0).to(self.device)
-
-                torch.remainder(new_elig_hidden, self.window, out=regularization_hidden)
-                torch.remainder(new_elig_output, self.window, out=regularization_output)
-
-                self.eh_timer.sub_(regularization_hidden)
-                self.eo_timer.sub_(regularization_output)
-
-                # eligible synapses are those with timers > 0
-                self.elig_hidden = (self.eh_timer > 0).float()
-                self.elig_output = (self.eo_timer > 0).float()
-                """
+                
                 decay_in = (self.last_in > 0).float()
                 decay_hid = (self.last_hid > 0).float()
                 decay_out = (self.last_out > 0).float()
@@ -109,9 +75,17 @@ class Learner():
                 self.elig_output = (self.elig_output > 0).float()
 
         
-        def weight_change(self, criticism):
+        def weight_change(self, criticism, rescale):
 
+                # rescaling
+                if rescale:
 
+                        self.hidden_weights.mul_(1.01)
+                        self.output_weights.mul_(1.01)
+
+                        return self.hidden_weights, self.output_weights
+
+                # Otherwise, do the STDP stuff
                 # If the critic returns a negative, we've performed badly.
                 if criticism < 0:
                         
@@ -138,4 +112,4 @@ class Learner():
                 
 
                 # synapses should be multiplied by these values
-                return weight_hid, weight_out
+                return torch.mul(self.hidden_weights, self.weight_mod_hidden), torch.mul(self.output_weights, self.weight_mod_output)
