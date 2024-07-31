@@ -81,7 +81,7 @@ num_hidden = 50
 num_outputs = 3
 
 num_steps = 200
-num_moves = 200
+num_moves = 300
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 dtype = torch.float
@@ -100,6 +100,8 @@ def main():
 
     global chosen_moves
     global random_moves
+
+    torch.set_grad_enabled(False)
     
     for epoch in range(100):
 
@@ -117,6 +119,7 @@ def main():
         net.reset()
         chosen_moves = 0
         random_moves = 0
+        hunger = 0
 
         movetime = []   # benchmarking runtime performance
         time.sleep(1)
@@ -134,12 +137,19 @@ def main():
 
             if ant.was_fed:
                 criticism = 1*game.food_eaten
+                hunger = 0
 
             elif ant.sees_food_ahead:
-                criticism = -0.01
+                criticism = 0.1
+                
+                if hunger > 0:
+                    criticism = 0
+
+                hunger += 1
 
             else:
-                criticism = -1
+                criticism = -1 - 0.01*(2**hunger)
+                hunger += 1
 
             #old_crit = critic.get_Q(game.food_eaten, num_moves)
                 
@@ -160,12 +170,19 @@ def main():
 
 
         #print_stats(ant, trail)
-        print(f"No ops: {net.scale}. Food collected: {game.food_eaten}")
+        print(f"No ops: {net.rescale_count}. Food collected: {game.food_eaten}")
         print(f"Average time between moves: {np.mean(np.array(movetime))}")
         print(f"Random moves made: {random_moves}. Chosen moves made: {chosen_moves}\n")
         game.reset(ant, map_, trail)
         game.draw_screen(screen, ant, trail, map_)
         pygame.display.update()
+
+
+    # save parameters after training
+    hid_con = net.forward_hidden.weight.detach().cpu().numpy()
+    out_con = net.forward_output.weight.detach().cpu().numpy()
+
+    np.savez("../SFT_Training/parameters.npz", hid_con=hid_con, out_con=out_con)
 
 
 

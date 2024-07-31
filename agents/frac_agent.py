@@ -41,7 +41,7 @@ class FSNN(nn.Module):
                 self.rescale_count = 0
 
                 # NOTE: Play with ratio of thinking time vs learner window, also the w_inc and max parameters
-                self.learner = Learner(num_input, num_hidden, num_output, hidden_weights, output_weights 50, 0.1, 0.1, 10, device)
+                self.learner = Learner(num_input, num_hidden, num_output, hidden_weights, output_weights, int(thinking_time / 4), 0.1, 0.1, 20, device)
                 
                 
                 
@@ -89,7 +89,8 @@ class FSNN(nn.Module):
         # Called after each action; 
         def weight_update(self, criticism):
 
-                self.rescale_count += 1
+                if self.rescale:
+                        self.rescale_count += 1
                 hidden_weights, output_weights = self.learner.weight_change(criticism, self.rescale)
 
 
