@@ -3,7 +3,7 @@ import snntorch as snn
 import torch
 import torch.nn as nn
 import numpy as np
-from agents.learning_rules.STDP import Learner
+from agents.learning_rules.STDP_rec import Learner
 import math
 
 
@@ -21,8 +21,8 @@ class FSNN(nn.Module):
                 #self.forward_hidden.weight = nn.Parameter(torch.abs(weight.mul(5)))
 
 
-                #self.recurrent_hidden = nn.Linear(num_hidden, num_hidden)
-                #weight = self.recurrent_hidden.weight
+                self.feedback = nn.Linear(num_hidden, num_hidden)
+                feedback_weights = self.feedback.weight
                 #self.forward_hidden.weight = nn.Parameter(torch.abs(weight.mul(5)))
                 
                 
@@ -41,7 +41,7 @@ class FSNN(nn.Module):
                 self.rescale_count = 0
 
                 # NOTE: Play with ratio of thinking time vs learner window, also the w_inc and max parameters
-                self.learner = Learner(num_input, num_hidden, num_output, hidden_weights, output_weights, int(thinking_time / 4), 0.1, 0.1, 20, device)
+                self.learner = Learner(num_input, num_hidden, num_output, hidden_weights, output_weights, feedback_weights, int(thinking_time / 4), 0.1, 0.1, 0.1, 20, device)
                 
                 
                 
@@ -56,6 +56,7 @@ class FSNN(nn.Module):
 
                 # TODO: fill
                 # feed input to network, come up with an action (spike train)
+                fdb = False
                 for ms in range(self.thinking_time):
 
                         # forward pass
@@ -64,9 +65,10 @@ class FSNN(nn.Module):
                         
                         hidden_current = self.forward_hidden(input_spikes)
 
-                        #if ms > 0:
+                        if ms > 0:
 
-                                #hidden_current.add_(self.recurrent_hidden(hidden_spikes))
+                                hidden_current.add_(self.feedback(hidden_spikes))
+                                fdb = True
                         
                         hidden_spikes, hidden_mem = self.hidden_layer(hidden_current, hidden_mem)
                         
@@ -75,7 +77,7 @@ class FSNN(nn.Module):
 
                         spike_trace.append(output_spikes)
 
-                        self.learner.update(input_spikes, hidden_spikes, output_spikes)
+                        self.learner.update(input_spikes, hidden_spikes, output_spikes, fdb)
 
 
                 spike_trace = torch.stack(spike_trace, dim=0)
@@ -91,12 +93,12 @@ class FSNN(nn.Module):
 
                 if self.rescale:
                         self.rescale_count += 1
-                hidden_weights, output_weights = self.learner.weight_change(criticism, self.rescale)
+                hidden_weights, output_weights, feedback_weights = self.learner.weight_change(criticism, self.rescale)
 
 
                 self.forward_hidden.weight = nn.Parameter(hidden_weights)
                 self.forward_output.weight = nn.Parameter(output_weights)
-
+                self.feedback.weight = nn.Parameter(feedback_weights)
 
         def reset(self):
                 self.rescale_count = 0

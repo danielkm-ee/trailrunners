@@ -63,7 +63,7 @@ def get_command(spikes):
     else:
         chosen_moves += 1
 
-    if torch.rand(1) > 0.95: # random chance of moving
+    if torch.rand(1) > 0.99: # random chance of moving
 
         rand_move = torch.randint(low=0, high=3, size=(1,1))
         #idx = rand_move.item()
@@ -103,7 +103,7 @@ def main():
 
     torch.set_grad_enabled(False)
     
-    for epoch in range(100):
+    for epoch in range(3000):
 
         
         
@@ -136,19 +136,18 @@ def main():
             game.play(ant, command, command=True)
 
             if ant.was_fed:
-                criticism = 1*game.food_eaten
+                criticism = 1#1*game.food_eaten
                 hunger = 0
 
             elif ant.sees_food_ahead:
-                criticism = 0.1
-                
+                criticism = 1#0.1 - 0.01*hunger
+
                 if hunger > 0:
                     criticism = 0
-
                 hunger += 1
 
             else:
-                criticism = -1 - 0.01*(2**hunger)
+                criticism = -1 #- 0.01*hunger
                 hunger += 1
 
             #old_crit = critic.get_Q(game.food_eaten, num_moves)
