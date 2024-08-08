@@ -11,6 +11,8 @@ import torch.nn.functional as F
 import numpy as np
 from agents.learning_rules.STDP_rec import Learner
 
+import math
+
 class RSNN_LSTM(nn.Module):
     '''
     spiking network with recurrent connections, a total beast of a network ToT
@@ -19,7 +21,7 @@ class RSNN_LSTM(nn.Module):
         super().__init__()
         
         self.fc1 = nn.Linear(num_inputs, num_hidden)
-        self.rc1 = nn.Linear(num_inputs, num_hidden)
+        self.rcweights = nn.Parameter(torch.diag(torch.randn(num_hidden) / num_hidden))
         self.lif1 = LIFv1()
         self.fc2 = nn.Linear(num_hidden, num_outputs)
         self.lif2 = LIF()
@@ -28,10 +30,24 @@ class RSNN_LSTM(nn.Module):
         self.rescale_count = 0
 
         hidden_weights = self.fc1.weight
-        feedback_weights = self.rc1.weight
+        feedback_weights = self.rcweights
         output_weights = self.fc2.weight
 
-        self.learner = Learner(num_inputs, num_hidden, num_outputs, hidden_weights, output_weights, feedback_weights, int(num_steps / 4), 0.1, 0.1, 0.1, 20, device)
+        self.num_hidden = num_hidden
+
+        self.hid_spk_old = torch.zeros(0)
+
+        w_inc_hid = math.sqrt(1 / num_inputs) * 0.25
+        w_inc_out = math.sqrt(1 / num_hidden) * 0.25
+        w_inc_fdb = math.sqrt(1 / num_hidden) * 0.25
+        w_inc_skp = math.sqrt(1 / num_inputs) * 0.25
+
+        w_max_hid = math.sqrt(1 / num_inputs) * 4
+        w_max_out = math.sqrt(1 / num_hidden) * 10
+        w_max_fdb = math.sqrt(1 / num_hidden) * 10
+        w_max_skp = math.sqrt(1 / num_inputs) * 3
+
+        self.learner = Learner(num_inputs, num_hidden, num_outputs, hidden_weights, output_weights, feedback_weights, torch.zeros(0), window=50, w_inc_hid=w_inc_hid, w_inc_out=w_inc_out, w_inc_fdb=w_inc_fdb, w_inc_skp=0, w_s_max_hid=w_max_hid, w_s_max_out=w_max_out, w_s_max_fdb=w_max_fdb, w_s_max_skp=0, device=device)
 
 
     def forward(self, x):
@@ -45,9 +61,13 @@ class RSNN_LSTM(nn.Module):
         mem2_rec = []
         spk2_rec = []
 
+        self.hid_spk_old = torch.zeros(self.num_hidden, device=self.learner.device)
         for step in range(self.num_steps):
             candidate1 = F.sigmoid(self.fc1(x[step]))
-            forget1 = F.relu(self.rc1(x[step]))
+            forget1 = F.relu(torch.matmul(self.rcweights, self.hid_spk_old))
+            print(candidate1.size())
+            print(forget1.size())
+            print(self.hid_spk_old.size())
             spk1, mem1 = self.lif1(candidate1, forget1)
 
             syn2 = self.fc2(spk1)
@@ -57,7 +77,8 @@ class RSNN_LSTM(nn.Module):
             spk1_rec.append(spk1)
             spk2_rec.append(spk2)
 
-            self.learner.update(x[step], spk1, spk2, do_feedback=True)
+            self.learner.update(x[step], spk1, self.hid_spk_old, spk2, do_feedback=True)
+            self.hid_spk_old=spk1
 
 
         spk1_rec = torch.stack(spk1_rec, dim=0)
@@ -75,11 +96,11 @@ class RSNN_LSTM(nn.Module):
 
             if self.rescale:
                     self.rescale_count += 1
-            hidden_weights, output_weights, feedback_weights = self.learner.weight_change(criticism, self.rescale)
+            hidden_weights, output_weights, feedback_weights = self.learner.weight_change(criticism)
 
             self.fc1.weight = nn.Parameter(hidden_weights)
             self.fc2.weight = nn.Parameter(output_weights)
-            self.rc1.weight = nn.Parameter(feedback_weights)
+            self.rcweights = nn.Parameter(feedback_weights)
 
 
 class LIF(nn.Module):

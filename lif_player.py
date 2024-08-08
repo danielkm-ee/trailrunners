@@ -13,6 +13,8 @@ from snntorch import spikegen
 from agents.recurrent_network_v1 import RSNN_LSTM
 
 import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.gridspec import GridSpec
 import time
 
 # define variables and levels for trail game
@@ -99,6 +101,19 @@ def main():
     game = Game()
     map_ = Map()
 
+    plt.ion()
+    gs1 = GridSpec(1, 3)
+    fig1 = plt.figure()
+    ax1_1 = fig1.add_subplot(gs1[0, 0])
+    ax1_2 = fig1.add_subplot(gs1[0, 1])
+    ax1_3 = fig1.add_subplot(gs1[0,2])
+
+    gs2 = GridSpec(2, 2)
+    fig2 = plt.figure()
+    ax2_1 = fig2.add_subplot(gs2[0, 0])
+    ax2_2 = fig2.add_subplot(gs2[0, 1])
+    ax2_3 = fig2.add_subplot(gs2[1, :])
+
     global chosen_moves
     global random_moves
 
@@ -126,14 +141,14 @@ def main():
 
             stimulus = get_stimulus(ant.sees_food_ahead)
             stim_spk = spikegen.rate(stimulus, num_steps=num_steps, gain=1).to(device)
-            _, _, spk2, _ = net(stim_spk)
+            _, mem1, spk2, mem2 = net(stim_spk)
 
             # decode outputs and play move
             command = get_command(spk2)
             game.play(ant, command, command=True)
 
             if ant.was_fed:
-                criticism = 1*game.food_eaten - move
+                criticism = 1*game.food_eaten
 
             elif ant.sees_food_ahead:
                 criticism = -0.01
@@ -154,6 +169,26 @@ def main():
             
             end = time.time() - start
             movetime.append(end)
+
+            ax1_1.remove()
+            ax1_2.remove()
+            ax1_3.remove()
+            ax2_1.remove()
+            ax2_2.remove()
+            ax2_3.remove()
+            ax1_1 = fig1.add_subplot(gs1[0, 0])
+            ax1_2 = fig1.add_subplot(gs1[0, 1])
+            ax1_3 = fig1.add_subplot(gs1[0, 2])
+            ax2_1 = fig2.add_subplot(gs2[0, 0])
+            ax2_2 = fig2.add_subplot(gs2[0, 1])
+            ax2_3 = fig2.add_subplot(gs2[1, :])
+            ax1_1.imshow(net.fc1.weight)
+            ax1_2.imshow(net.fc2.weight)
+            ax1_3.imshow(net.rcweights)
+            ax2_1.imshow(mem1.T)
+            ax2_2.imshow(mem2.T)
+            ax2_3.imshow(stim_spk.T)
+            plt.pause(0.0001)
 
             game.draw_screen(screen, ant, trail, map_)
             pygame.display.update()
