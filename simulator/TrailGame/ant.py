@@ -19,7 +19,7 @@ class Direction:
     DOWN = 3
 
 class Ant:
-    def __init__(self, position=[0, 0]):
+    def __init__(self, position=[620, 0]):
         self.start_position = position.copy()
         self.position = position
         self.dir = Direction.RIGHT # 0 = right, 1 = up, 2 = left, 3 = down
