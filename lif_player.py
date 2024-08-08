@@ -10,7 +10,7 @@ import torch.nn as nn
 import snntorch as snn
 
 from snntorch import spikegen
-from agents.lif_agent import SNN
+from agents.recurrent_network_v1 import RSNN_LSTM
 
 import numpy as np
 import time
@@ -89,7 +89,7 @@ dtype = torch.float
 torch.set_grad_enabled(False)
 
 # initialize the neural network
-net = SNN(num_inputs, num_hidden, num_outputs, num_steps).to(device)
+net = RSNN_LSTM(num_inputs, num_hidden, num_outputs, num_steps, device=device).to(device)
 
 def main():
 
@@ -164,7 +164,7 @@ def main():
             best_game_score = game.food_eaten
         print(f"Best Game: {best_game_score}")
         print(f"This Game: {game.food_eaten}")
-        print(f"No ops: {net.rescale_count}")
+        print(f"No ops: ")
         print(f"Average time between moves: {np.mean(np.array(movetime))}")
         print(f"Random moves made: {random_moves}. Chosen moves made: {chosen_moves}")
         game.reset(ant, map_, trail)
