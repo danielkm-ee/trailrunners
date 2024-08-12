@@ -10,7 +10,7 @@ import torch.nn as nn
 import snntorch as snn
 
 from snntorch import spikegen
-from agents.recurrent_network_v1 import RSNN_LSTM
+from agents.lif_agent import SNN
 
 import numpy as np
 import time
@@ -89,7 +89,7 @@ dtype = torch.float
 torch.set_grad_enabled(False)
 
 # initialize the neural network
-net = RSNN_LSTM(num_inputs, num_hidden, num_outputs, num_steps, device=device).to(device)
+net = SNN(num_inputs, num_hidden, num_outputs, num_steps, device=device).to(device)
 
 def main():
 
