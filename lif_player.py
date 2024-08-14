@@ -38,7 +38,7 @@ HEIGHT = 640
 chosen_moves = 0
 random_moves = 0
 
-PLOT_ON = True
+PLOT_ON = False
 
 def get_stimulus(state, intensity=0.7):
     '''
@@ -82,13 +82,14 @@ def get_command(spikes):
 
 # sim params
 num_inputs = 2
-num_hidden = 10
+num_hidden = 20
 num_outputs = 3
 
 num_steps = 100
-num_moves = 300
+num_moves = 150
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
+device = 'cpu'
 dtype = torch.float
 
 torch.set_grad_enabled(False)
@@ -155,13 +156,13 @@ def main():
             game.play(ant, command, command=True)
 
             if ant.was_fed:
-                criticism = 20
+                criticism = 2
 
             elif ant.sees_food_ahead:
-                criticism = 5
+                criticism = 0.5
 
             else:
-                criticism = -2.5
+                criticism = -0.25
 
             #old_crit = critic.get_Q(game.food_eaten, num_moves)
                 
