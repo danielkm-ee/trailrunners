@@ -65,9 +65,6 @@ class RSNN_LSTM(nn.Module):
         for step in range(self.num_steps):
             candidate1 = F.sigmoid(self.fc1(x[step]))
             forget1 = F.relu(torch.matmul(self.rcweights, self.hid_spk_old))
-            print(candidate1.size())
-            print(forget1.size())
-            print(self.hid_spk_old.size())
             spk1, mem1 = self.lif1(candidate1, forget1)
 
             syn2 = self.fc2(spk1)
