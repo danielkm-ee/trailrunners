@@ -10,7 +10,7 @@ import torch.nn as nn
 import snntorch as snn
 
 from snntorch import spikegen
-from agents.lif_syntdp_net import SNN
+from agents.recurrent_network_v1 import RSNN_LSTM
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -38,7 +38,7 @@ HEIGHT = 640
 chosen_moves = 0
 random_moves = 0
 
-PLOT_ON = True
+PLOT_ON = False
 
 def get_stimulus(state, intensity=0.7):
     '''
@@ -94,7 +94,7 @@ dtype = torch.float
 torch.set_grad_enabled(False)
 
 # initialize the neural network
-net = SNN(num_inputs, num_hidden, num_outputs, num_steps, device=device).to(device)
+net = RSNN_LSTM(num_inputs, num_hidden, num_outputs, num_steps, device=device).to(device)
 
 matplotlib.rcParams['image.cmap'] = 'inferno'
 
@@ -114,6 +114,7 @@ def main():
         fig1 = plt.figure()
         ax1_1 = fig1.add_subplot(gs1[0, 0])
         ax1_2 = fig1.add_subplot(gs1[0, 1])
+        ax1_3 = fig1.add_subplot(gs1[0,2])
 
         gs2 = GridSpec(2, 2)
         fig2 = plt.figure()
@@ -148,25 +149,24 @@ def main():
 
             stimulus = get_stimulus(ant.sees_food_ahead)
             stim_spk = spikegen.rate(stimulus, num_steps=num_steps, gain=1).to(device)
-            spk1, mem1, spk2, mem2 = net(stim_spk)
+            _, mem1, spk2, mem2 = net(stim_spk)
 
             # decode outputs and play move
             command = get_command(spk2)
             game.play(ant, command, command=True)
 
             if ant.was_fed:
-                criticism = 20
+                criticism = 2
 
             elif ant.sees_food_ahead:
-                criticism = 5
+                criticism = 0.5
 
             else:
-                criticism = -2.5
+                criticism = -0.25
 
             #old_crit = critic.get_Q(game.food_eaten, num_moves)
                 
-            net.syn1.weight_update(stim_spk, spk1, criticism)
-            net.syn2.weight_update(spk1, spk2, criticism)
+            net.weight_update(criticism)
 
             # update game state
             game.update(ant, trail, map_)
@@ -181,6 +181,7 @@ def main():
             if PLOT_ON:
                 ax1_1.remove()
                 ax1_2.remove()
+                ax1_3.remove()
                 ax2_1.remove()
                 ax2_2.remove()
                 ax2_3.remove()
@@ -190,8 +191,9 @@ def main():
                 ax2_1 = fig2.add_subplot(gs2[0, 0])
                 ax2_2 = fig2.add_subplot(gs2[0, 1])
                 ax2_3 = fig2.add_subplot(gs2[1, :])
-                ax1_1.imshow(net.syn1.weight)
-                ax1_2.imshow(net.syn2.weight)
+                ax1_1.imshow(net.fc1.weight)
+                ax1_2.imshow(net.fc2.weight)
+                ax1_3.imshow(net.rcweights)
                 ax2_1.imshow(mem1.T)
                 ax2_2.imshow(mem2.T)
                 ax2_3.imshow(stim_spk.T)
