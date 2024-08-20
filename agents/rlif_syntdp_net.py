@@ -17,20 +17,30 @@ class RSNN_LSTM(nn.Module):
     '''
     spiking network with recurrent connections, a total beast of a network ToT
     '''
-    def __init__(self, num_inputs, num_hidden, num_outputs, num_steps, device='cpu', beta=0.5, alpha=0.5):
+    def __init__(self, num_inputs, num_hidden, num_outputs, num_steps, device='cpu', beta=0.5, alpha=0.5, num_hidden2=50, deep=False):
         super().__init__()
         
         self.syn1 = SYNTDP(num_inputs, num_hidden, device=device)
         self.rsyn1 = STDP(device=device)
-        self.rweight1 = nn.Parameter(torch.diag(torch.randn(num_hidden, device=device) / num_hidden))
+        self.rweight1 = nn.Parameter(torch.diag(torch.randn(num_hidden, device=device) / num_hidden**2))
         self.lif1 = LIFv1()
-        self.syn2 = SYNTDP(num_hidden, num_outputs, device=device)
-        self.lif2 = LIF()
+
+        self.syn2 = SYNTDP(num_hidden, (num_outputs if not deep else num_hidden2), device=device)
+        if deep:
+            self.rsyn2 = STDP(device=device)
+            self.rweight2 = nn.Parameter(torch.diag(torch.randn(num_hidden2, device=device) / num_hidden2**2))
+        self.lif2 = LIF() if not deep else LIFv1()
+
+        if deep:
+            self.syn3 = SYNTDP(num_hidden2, num_outputs, device=device)
+            self.lif3 = LIF()
         
         self.num_steps = num_steps
         self.num_hidden = num_hidden
+        self.num_hidden2 = num_hidden2
         self.hid_spk_old = torch.zeros(0)
         self.device = device
+        self.deep = deep
 
     def forward(self, x):
 
@@ -44,6 +54,11 @@ class RSNN_LSTM(nn.Module):
         mem2_rec = []
         spk2_rec = []
         hid_rspk_rec = []
+        if self.deep:
+            mem3_rec = []
+            spk3_rec = []
+            hid2_rspk_rec = []
+            self.hid2_spk_old = torch.zeros(self.num_hidden2, device=self.device)
 
         self.hid_spk_old = torch.zeros(self.num_hidden, device=self.device)
         for step in range(self.num_steps):
@@ -51,23 +66,41 @@ class RSNN_LSTM(nn.Module):
             forget1 = F.relu(self.rweight1 @ self.hid_spk_old)
             spk1, mem1 = self.lif1(candidate1, forget1)
 
-            syn2 = self.syn2(spk1)
-            spk2, mem2 = self.lif2(syn2)
+            if self.deep:
+                candidate2 = F.sigmoid(self.syn2(spk1))
+                forget2 = F.relu(self.rweight2 @ self.hid2_spk_old)
+                spk2, mem2 = self.lif2(candidate2, forget2)
+                syn3 = self.syn3(spk2)
+                spk3, mem3 = self.lif3(syn3)
+                spk3_rec.append(spk3)
+                mem3_rec.append(mem3)
+                
+            else:
+                syn2 = self.syn2(spk1)
+                spk2, mem2 = self.lif2(syn2)
+
+
             mem1_rec.append(mem1)
             mem2_rec.append(mem2)
             spk1_rec.append(spk1)
             spk2_rec.append(spk2)
             hid_rspk_rec.append(self.hid_spk_old)
+            hid2_rspk_rec.append(self.hid2_spk_old)
 
             self.hid_spk_old=spk1
+            self.hid2_spk_old=spk2
 
         spk1_rec = torch.stack(spk1_rec, dim=0)
         mem1_rec = torch.stack(mem1_rec, dim=0)
         spk2_rec = torch.stack(spk2_rec, dim=0)
         mem2_rec = torch.stack(mem2_rec, dim=0)
         hid_rspk_rec = torch.stack(hid_rspk_rec, dim=0)
+        if self.deep:
+            hid2_rspk_rec = torch.stack(hid2_rspk_rec, dim=0)
+            spk3_rec = torch.stack(spk3_rec, dim=0)
+            mem3_rec = torch.stack(mem3_rec, dim=0)
 
-        return spk1_rec, mem1_rec, spk2_rec, mem2_rec, hid_rspk_rec
+        return spk1_rec, mem1_rec, spk2_rec, mem2_rec, hid_rspk_rec, spk3_rec, mem3_rec, hid2_rspk_rec
 
 
 class LIF(nn.Module):
