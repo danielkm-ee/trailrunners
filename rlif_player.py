@@ -10,7 +10,7 @@ import torch.nn as nn
 import snntorch as snn
 
 from snntorch import spikegen
-from agents.lif_syntdp_net import SNN
+from agents.rlif_syntdp_net import RSNN_LSTM
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -82,20 +82,19 @@ def get_command(spikes):
 
 # sim params
 num_inputs = 2
-num_hidden = 20
+num_hidden = 100
 num_outputs = 3
 
 num_steps = 100
 num_moves = 150
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-device = 'cpu'
 dtype = torch.float
 
 torch.set_grad_enabled(False)
 
 # initialize the neural network
-net = SNN(num_inputs, num_hidden, num_outputs, num_steps, device=device).to(device)
+net = RSNN_LSTM(num_inputs, num_hidden, num_outputs, num_steps, device=device).to(device)
 
 matplotlib.rcParams['image.cmap'] = 'inferno'
 
@@ -115,6 +114,7 @@ def main():
         fig1 = plt.figure()
         ax1_1 = fig1.add_subplot(gs1[0, 0])
         ax1_2 = fig1.add_subplot(gs1[0, 1])
+        ax1_3 = fig1.add_subplot(gs1[0,2])
 
         gs2 = GridSpec(2, 2)
         fig2 = plt.figure()
@@ -149,7 +149,7 @@ def main():
 
             stimulus = get_stimulus(ant.sees_food_ahead)
             stim_spk = spikegen.rate(stimulus, num_steps=num_steps, gain=1).to(device)
-            spk1, mem1, spk2, mem2 = net(stim_spk)
+            spk1, mem1, spk2, mem2, rspk = net(stim_spk)
 
             # decode outputs and play move
             command = get_command(spk2)
@@ -164,17 +164,13 @@ def main():
             else:
                 criticism = -0.25
 
-            #old_crit = critic.get_Q(game.food_eaten, num_moves)
-                
             net.syn1.weight_update(stim_spk, spk1, criticism)
+            net.rsyn1.update(rspk, spk1)
+            net.rweight1 += criticism * (net.rsyn1.eligibility * torch.diag(torch.ones_like(net.rweight1[0])))
             net.syn2.weight_update(spk1, spk2, criticism)
 
             # update game state
             game.update(ant, trail, map_)
-
-            ## updating game state without drawing anything can be done using...
-            # map_.patrol(ant)
-            # ant.sniffAhead(trail)
             
             end = time.time() - start
             movetime.append(end)
@@ -182,6 +178,7 @@ def main():
             if PLOT_ON:
                 ax1_1.remove()
                 ax1_2.remove()
+                ax1_3.remove()
                 ax2_1.remove()
                 ax2_2.remove()
                 ax2_3.remove()
@@ -191,11 +188,12 @@ def main():
                 ax2_1 = fig2.add_subplot(gs2[0, 0])
                 ax2_2 = fig2.add_subplot(gs2[0, 1])
                 ax2_3 = fig2.add_subplot(gs2[1, :])
-                ax1_1.imshow(net.syn1.weight)
-                ax1_2.imshow(net.syn2.weight)
-                ax2_1.imshow(mem1.T)
-                ax2_2.imshow(mem2.T)
-                ax2_3.imshow(stim_spk.T)
+                ax1_1.imshow(net.syn1.weight.cpu())
+                ax1_2.imshow(net.syn2.weight.cpu())
+                ax1_3.imshow(net.rweight1.cpu())
+                ax2_1.imshow(mem1.T.cpu())
+                ax2_2.imshow(mem2.T.cpu())
+                ax2_3.imshow(stim_spk.T.cpu())
                 plt.pause(0.00000001)
 
             game.draw_screen(screen, ant, trail, map_)
