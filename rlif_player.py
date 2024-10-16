@@ -38,7 +38,7 @@ HEIGHT = 640
 chosen_moves = 0
 random_moves = 0
 
-PLOT_ON = False
+PLOT_ON = True
 
 def get_stimulus(state, intensity=0.7):
     '''
@@ -86,7 +86,7 @@ num_hidden = 100
 num_outputs = 3
 
 num_steps = 100
-num_moves = 150
+num_moves = 200
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 dtype = torch.float
@@ -94,7 +94,8 @@ dtype = torch.float
 torch.set_grad_enabled(False)
 
 # initialize the neural network
-net = RSNN_LSTM(num_inputs, num_hidden, num_outputs, num_steps, device=device).to(device)
+deep = True
+net = RSNN_LSTM(num_inputs, num_hidden, num_outputs, num_steps, num_hidden2=200, device=device, deep=deep).to(device)
 
 matplotlib.rcParams['image.cmap'] = 'inferno'
 
@@ -149,25 +150,33 @@ def main():
 
             stimulus = get_stimulus(ant.sees_food_ahead)
             stim_spk = spikegen.rate(stimulus, num_steps=num_steps, gain=1).to(device)
-            spk1, mem1, spk2, mem2, rspk = net(stim_spk)
+            spk1, mem1, spk2, mem2, rspk, spk3, mem3, rspk2 = net(stim_spk)
 
             # decode outputs and play move
-            command = get_command(spk2)
+            command = get_command(spk3)
             game.play(ant, command, command=True)
 
             if ant.was_fed:
-                criticism = 2
+                criticism = 0.05*game.food_eaten
 
             elif ant.sees_food_ahead:
-                criticism = 0.5
+                criticism = -0.01
 
             else:
-                criticism = -0.25
+                criticism = -0.025
+
 
             net.syn1.weight_update(stim_spk, spk1, criticism)
             net.rsyn1.update(rspk, spk1)
             net.rweight1 += criticism * (net.rsyn1.eligibility * torch.diag(torch.ones_like(net.rweight1[0])))
+
             net.syn2.weight_update(spk1, spk2, criticism)
+            net.rsyn2.update(rspk2, spk2)
+            net.rweight2 += criticism * (net.rsyn2.eligibility * torch.diag(torch.ones_like(net.rweight2[0])))
+
+
+            net.syn3.weight_update(spk2, spk3, criticism)
+
 
             # update game state
             game.update(ant, trail, map_)
