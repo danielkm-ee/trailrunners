@@ -25,10 +25,8 @@ class Controller:
     def rlm_command(ant, command):
         if (command == 'l'):
             ant.dir = (ant.dir + 1) % 4
-            ant.move()
         elif (command == 'r'):
             ant.dir = (ant.dir - 1) % 4
-            ant.move()
         elif (command == 'f'):
             ant.move()
         return

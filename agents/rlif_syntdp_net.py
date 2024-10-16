@@ -9,7 +9,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 import numpy as np
-from agents.learning_rules.STDP_rec import Learner
+from agents.learning_rules.SYNTDP import SYNTDP, STDP
 
 import math
 
@@ -17,42 +17,35 @@ class RSNN_LSTM(nn.Module):
     '''
     spiking network with recurrent connections, a total beast of a network ToT
     '''
-    def __init__(self, num_inputs, num_hidden, num_outputs, num_steps, device, beta=0.5, alpha=0.5):
+    def __init__(self, num_inputs, num_hidden, num_outputs, num_steps, device='cpu', beta=0.5, alpha=0.5, num_hidden2=50, deep=False):
         super().__init__()
         
-        self.fc1 = nn.Linear(num_inputs, num_hidden)
-        self.rcweights = nn.Parameter(torch.diag(torch.randn(num_hidden) / num_hidden))
+        self.syn1 = SYNTDP(num_inputs, num_hidden, device=device)
+        self.rsyn1 = STDP(device=device)
+        self.rweight1 = nn.Parameter(torch.diag(torch.randn(num_hidden, device=device) / num_hidden**2))
         self.lif1 = LIFv1()
-        self.fc2 = nn.Linear(num_hidden, num_outputs)
-        self.lif2 = LIF()
+
+        self.syn2 = SYNTDP(num_hidden, (num_outputs if not deep else num_hidden2), device=device)
+        if deep:
+            self.rsyn2 = STDP(device=device)
+            self.rweight2 = nn.Parameter(torch.diag(torch.randn(num_hidden2, device=device) / num_hidden2**2))
+        self.lif2 = LIF() if not deep else LIFv1()
+
+        if deep:
+            self.syn3 = SYNTDP(num_hidden2, num_outputs, device=device)
+            self.lif3 = LIF()
+        
         self.num_steps = num_steps
-        self.rescale = False
-        self.rescale_count = 0
-
-        hidden_weights = self.fc1.weight
-        feedback_weights = self.rcweights
-        output_weights = self.fc2.weight
-
         self.num_hidden = num_hidden
-
+        self.num_hidden2 = num_hidden2
         self.hid_spk_old = torch.zeros(0)
-
-        w_inc_hid = math.sqrt(1 / num_inputs) * 0.25
-        w_inc_out = math.sqrt(1 / num_hidden) * 0.25
-        w_inc_fdb = math.sqrt(1 / num_hidden) * 0.25
-        w_inc_skp = math.sqrt(1 / num_inputs) * 0.25
-
-        w_max_hid = math.sqrt(1 / num_inputs) * 4
-        w_max_out = math.sqrt(1 / num_hidden) * 10
-        w_max_fdb = math.sqrt(1 / num_hidden) * 10
-        w_max_skp = math.sqrt(1 / num_inputs) * 3
-
-        self.learner = Learner(num_inputs, num_hidden, num_outputs, hidden_weights, output_weights, feedback_weights, torch.zeros(0), window=50, w_inc_hid=w_inc_hid, w_inc_out=w_inc_out, w_inc_fdb=w_inc_fdb, w_inc_skp=0, w_s_max_hid=w_max_hid, w_s_max_out=w_max_out, w_s_max_fdb=w_max_fdb, w_s_max_skp=0, device=device)
-
+        self.device = device
+        self.deep = deep
 
     def forward(self, x):
 
         # initalize hidden states
+        x = x.to(self.device)
         self.lif1.reset_mem()
         self.lif2.reset_mem()
 
@@ -60,51 +53,61 @@ class RSNN_LSTM(nn.Module):
         spk1_rec = []
         mem2_rec = []
         spk2_rec = []
+        hid_rspk_rec = []
+        if self.deep:
+            mem3_rec = []
+            spk3_rec = []
+            hid2_rspk_rec = []
+            self.hid2_spk_old = torch.zeros(self.num_hidden2, device=self.device)
 
-        self.hid_spk_old = torch.zeros(self.num_hidden, device=self.learner.device)
+        self.hid_spk_old = torch.zeros(self.num_hidden, device=self.device)
         for step in range(self.num_steps):
-            candidate1 = F.sigmoid(self.fc1(x[step]))
-            forget1 = F.relu(torch.matmul(self.rcweights, self.hid_spk_old))
+            candidate1 = F.sigmoid(self.syn1(x[step]))
+            forget1 = F.relu(self.rweight1 @ self.hid_spk_old)
             spk1, mem1 = self.lif1(candidate1, forget1)
 
-            syn2 = self.fc2(spk1)
-            spk2, mem2 = self.lif2(syn2)
+            if self.deep:
+                candidate2 = F.sigmoid(self.syn2(spk1))
+                forget2 = F.relu(self.rweight2 @ self.hid2_spk_old)
+                spk2, mem2 = self.lif2(candidate2, forget2)
+                syn3 = self.syn3(spk2)
+                spk3, mem3 = self.lif3(syn3)
+                spk3_rec.append(spk3)
+                mem3_rec.append(mem3)
+                
+            else:
+                syn2 = self.syn2(spk1)
+                spk2, mem2 = self.lif2(syn2)
+
+
             mem1_rec.append(mem1)
             mem2_rec.append(mem2)
             spk1_rec.append(spk1)
             spk2_rec.append(spk2)
+            hid_rspk_rec.append(self.hid_spk_old)
+            hid2_rspk_rec.append(self.hid2_spk_old)
 
-            self.learner.update(x[step], spk1, self.hid_spk_old, spk2, do_feedback=True)
             self.hid_spk_old=spk1
-
+            self.hid2_spk_old=spk2
 
         spk1_rec = torch.stack(spk1_rec, dim=0)
         mem1_rec = torch.stack(mem1_rec, dim=0)
         spk2_rec = torch.stack(spk2_rec, dim=0)
         mem2_rec = torch.stack(mem2_rec, dim=0)
+        hid_rspk_rec = torch.stack(hid_rspk_rec, dim=0)
+        if self.deep:
+            hid2_rspk_rec = torch.stack(hid2_rspk_rec, dim=0)
+            spk3_rec = torch.stack(spk3_rec, dim=0)
+            mem3_rec = torch.stack(mem3_rec, dim=0)
 
-        spike_count = spk2_rec.sum().item()
-        self.rescale = (spike_count == 0)
-
-        return spk1_rec, mem1_rec, spk2_rec, mem2_rec
-
-    # Called after each action 
-    def weight_update(self, criticism):
-
-            if self.rescale:
-                    self.rescale_count += 1
-            hidden_weights, output_weights, feedback_weights = self.learner.weight_change(criticism)
-
-            self.fc1.weight = nn.Parameter(hidden_weights)
-            self.fc2.weight = nn.Parameter(output_weights)
-            self.rcweights = nn.Parameter(feedback_weights)
+        return spk1_rec, mem1_rec, spk2_rec, mem2_rec, hid_rspk_rec, spk3_rec, mem3_rec, hid2_rspk_rec
 
 
 class LIF(nn.Module):
     '''
     Recurrent Synaptic Leaky integrate and fire neuron with surrogate gradient
     '''
-    def __init__(self, threshold=1, alpha=0.7, beta=0.5):
+    def __init__(self, threshold=1, alpha=0.7, beta=0.5, device='cpu'):
         super(LIF, self).__init__()
         self.beta = beta                # membrane leak
         self.alpha = alpha              # synaptic leak
